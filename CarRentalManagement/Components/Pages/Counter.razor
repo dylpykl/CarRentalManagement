@@ -1,19 +1,199 @@
 ﻿@page "/counter"
 @rendermode InteractiveServer
 
-<PageTitle>Counter</PageTitle>
+<PageTitle>Clicker Upgrade Lab</PageTitle>
 
-<h1>Counter</h1>
+<!-- Main Game Container -->
 
-<p role="status">Current count: @currentCount</p>
+<div class="container py-5">
+    <div class="row">
+        <!-- Main Counter Area (Col 1) -->
+        <div class="col-lg-7 mb-4">
+            <!-- Energy Core Card -->
+            <div class="card shadow-lg border-primary h-100 mb-3">
+                <div class="card-header bg-primary text-white text-center">
+                    <h2 class="m-0">Energy Core</h2>
+                </div>
+                <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                    <p class="fs-1 fw-bold mb-3">Total Clicks: @currentCount</p>
+                    <p class="text-muted mb-4">Clicks Per Action: +@clickPower</p>
 
-<button class="btn btn-primary" @onclick="IncrementCount">Click me</button>
+                    <!-- Main Click Button -->
+                    <button class="btn btn-primary btn-lg shadow-lg"
+                            @onclick="IncrementCount"
+                            style="padding: 20px 40px; border-radius: 50px; font-size: 1.5rem; transition: transform 0.1s ease-in-out;"
+                            onmousedown="this.style.transform='scale(0.98)'"
+                            onmouseup="this.style.transform='scale(1)'">
+                        GENERATE CLICKS
+                    </button>
+                    <small class="mt-2 text-primary fst-italic">Press the core to generate energy</small>
+                </div>
+            </div>
+
+            <!-- Risk Management Module (New Gamble Feature) -->
+            <div class="card shadow border-warning">
+                <div class="card-body p-3 bg-light d-flex flex-column flex-sm-row justify-content-between align-items-center">
+                    <div>
+                        <p class="mb-1 fw-bold text-warning">Risk Management Module</p>
+                        <p class="mb-0 small @(gambleMessage.Contains("WINNER") ? "text-success" : (gambleMessage.Contains("LOSER") ? "text-danger" : "text-dark"))">
+                            @gambleMessage
+                        </p>
+                    </div>
+                    <button class="btn btn-warning mt-2 mt-sm-0"
+                            @onclick="GambleEnergy"
+                            disabled="@(currentCount < GambleCost)">
+                        BET @GambleCost CLICKS (50% Chance)
+                    </button>
+                </div>
+            </div>
+            <!-- End Risk Management Module -->
+        </div>
+
+        <!-- Upgrade Shop Area (Col 2) -->
+        <div class="col-lg-5 mb-4">
+            <div class="card shadow-lg h-100">
+                <div class="card-header bg-dark text-white text-center">
+                    <h2 class="m-0">Upgrade Shop</h2>
+                </div>
+                <div class="card-body p-2">
+                    @foreach (var upgrade in Upgrades)
+                    {
+                        <div class="card mb-3 @(CanBuy(upgrade) ? "border-success" : "border-secondary")">
+                            <div class="card-body p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h5 class="card-title mb-0">@upgrade.Name (Level @upgrade.Level)</h5>
+                                        <p class="card-text text-muted small">@upgrade.Description</p>
+                                    </div>
+                                    <button class="btn btn-sm @(CanBuy(upgrade) ? "btn-success" : "btn-secondary")"
+                                            @onclick="() => BuyUpgrade(upgrade)"
+                                            disabled="@(!CanBuy(upgrade))">
+                                        Buy: @upgrade.CurrentCost Clicks
+                                    </button>
+                                </div>
+                                <small class="text-info mt-1 d-block">
+                                    Effect: +@upgrade.ClickPowerIncrease Clicks per Action
+                                </small>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+</div>
 
 @code {
-    private int currentCount = 0;
+    private long currentCount = 0;
+    private int clickPower = 1;
+    private List<Upgrade> Upgrades = new List<Upgrade>();
+
+    // Gamble Variables
+    private Random random = new Random();
+    private string gambleMessage = "Feeling lucky? Bet 100 clicks to double or lose the bet.";
+    private const int GambleCost = 100;
+
+    // Define the structure for an upgrade
+    private class Upgrade
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int BaseCost { get; set; }
+        public int ClickPowerIncrease { get; set; }
+        public int Level { get; set; } = 0;
+
+        // The cost increases linearly with the level
+        public long CurrentCost => (long)BaseCost * (Level + 1);
+    }
+
+    protected override void OnInitialized()
+    {
+        // Initialize the available upgrades
+        Upgrades.Add(new Upgrade
+        {
+            Name = "Reinforced Finger",
+            Description = "A basic ergonomic upgrade for better clicking efficiency.",
+            BaseCost = 10,
+            ClickPowerIncrease = 1
+        });
+
+        Upgrades.Add(new Upgrade
+        {
+            Name = "Automatic Servo",
+            Description = "Adds a small motor to help you press the button faster.",
+            BaseCost = 100,
+            ClickPowerIncrease = 5
+        });
+
+        Upgrades.Add(new Upgrade
+        {
+            Name = "Quantum Efficiency Chip",
+            Description = "Dramatically boosts energy generation per action.",
+            BaseCost = 500,
+            ClickPowerIncrease = 25
+        });
+    }
 
     private void IncrementCount()
     {
-        currentCount++;
+        // Add the current total click power to the count
+        currentCount += clickPower;
     }
+
+    private bool CanBuy(Upgrade upgrade)
+    {
+        return currentCount >= upgrade.CurrentCost;
+    }
+
+    private void BuyUpgrade(Upgrade upgrade)
+    {
+        if (CanBuy(upgrade))
+        {
+            // Deduct cost
+            currentCount -= upgrade.CurrentCost;
+
+            // Apply effect
+            clickPower += upgrade.ClickPowerIncrease;
+
+            // Level up the upgrade
+            upgrade.Level++;
+
+            StateHasChanged();
+        }
+    }
+
+    private void GambleEnergy()
+    {
+        // Check if the user has enough clicks to cover the bet
+        if (currentCount < GambleCost)
+        {
+            gambleMessage = $"Failure: You need {GambleCost} Clicks to bet!";
+            return;
+        }
+
+        // 1. Deduct the cost immediately (the risk)
+        currentCount -= GambleCost;
+
+        // 2. Determine the outcome (0 for Loss, 1 for Win)
+        int outcome = random.Next(2); // Generates 0 or 1
+
+        if (outcome == 1) // Win (50% chance)
+        {
+            // If they win, they get back the original bet + the reward (100 + 100)
+            int winAmount = GambleCost * 2;
+            currentCount += winAmount;
+            gambleMessage = $"🎉 WINNER! You won {winAmount} clicks. Net gain: +{GambleCost}!";
+        }
+        else // Lose (50% chance)
+        {
+            // The loss was already processed when the cost was deducted.
+            gambleMessage = $"💔 LOSER! You lost your bet. Net loss: -{GambleCost}!";
+        }
+
+        StateHasChanged();
+    }
+
+
 }
